@@ -22,7 +22,6 @@ class VideoDataset(Dataset):
         self.transform = transform
         self.samples = []
 
-        # Precompute the sample indices
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise FileNotFoundError(f"Cannot open video file: {video_path}")
