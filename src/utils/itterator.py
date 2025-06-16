@@ -45,7 +45,11 @@ class VideoDataset(Dataset):
             ret, frame = cap.read()
             if not ret:
                 break
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            if len(frame.shape) == 2:
+                frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+            else:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             if self.target_size:
                 frame = cv2.resize(frame, self.target_size)
