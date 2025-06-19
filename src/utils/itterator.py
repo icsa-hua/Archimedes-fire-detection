@@ -69,7 +69,7 @@ class VideoDataset(Dataset):
 
     
 if __name__ == "__main__":
-    video_file = "./data/video.mp4"
+    video_file = "./data/1.MP4"
 
     dataset = VideoDataset(video_path=video_file, frames_per_sample=11, target_size=(512, 512))
 
