@@ -14,6 +14,16 @@ from src.utils.utils import *
 #TODO: multi-processing on image ops
 #TODO: multi-threading into loading, writting, showing op 
 
+'''
+Ranking System (BFSD):
+±±±±±±±±±±±±±±±±±±±±±±
+F - how much motion there is (from optical flow),
+B - how many blobs are seen,
+S - how much the blob shapes change over time (fires flicker and change shape),
+D - how spread out the blobs are (fire usually stays together).
+'''
+
+
 class OpticalFlowCalculator:
     def compute(self, prev_gray, gray):
         return cv2.calcOpticalFlowFarneback(
@@ -156,7 +166,7 @@ class FireDetector:
 
 
 if __name__ == "__main__":
-    cap = cv2.VideoCapture("./data/9.MP4")
+    cap = cv2.VideoCapture("./data/1.MP4")
     ret, frame = cap.read()
     small_size = (frame.shape[1]//2, frame.shape[0]//2)
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
