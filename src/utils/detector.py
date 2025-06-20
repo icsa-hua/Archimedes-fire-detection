@@ -1,40 +1,18 @@
 import cv2
+import sys
 import numpy as np
-from scipy.spatial.distance import cdist
 from collections import deque
+from scipy.spatial.distance import cdist
+
+sys.path.append('./')
+
+from src.utils.utils import *
 
 #TODO: refactor, not in final stage
 #TODO: connect with image itterator for efficiency
 #TODO: grid-search params
 #TODO: multi-processing on image ops
 #TODO: multi-threading into loading, writting, showing op 
-
-def hu_moments(contour):
-    moments = cv2.moments(contour)
-    hu = cv2.HuMoments(moments).flatten()
-    return -np.sign(hu) * np.log10(np.abs(hu) + 1e-10)
-
-def non_max_suppression(boxes, overlapThresh=0.3):
-    if len(boxes) == 0:
-        return []
-    boxes = np.array(boxes)
-    x1, y1, x2, y2 = boxes[:,0], boxes[:,1], boxes[:,2], boxes[:,3]
-    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-    idxs = np.argsort(y2)
-    pick = []
-    while len(idxs) > 0:
-        last = idxs[-1]
-        pick.append(last)
-        idxs = idxs[:-1]
-        xx1 = np.maximum(x1[last], x1[idxs])
-        yy1 = np.maximum(y1[last], y1[idxs])
-        xx2 = np.minimum(x2[last], x2[idxs])
-        yy2 = np.minimum(y2[last], y2[idxs])
-        w = np.maximum(0, xx2 - xx1 + 1)
-        h = np.maximum(0, yy2 - yy1 + 1)
-        overlap = (w * h) / areas[idxs]
-        idxs = idxs[overlap <= overlapThresh]
-    return boxes[pick].astype(int).tolist()
 
 class OpticalFlowCalculator:
     def compute(self, prev_gray, gray):
@@ -58,7 +36,7 @@ class BlobAnalyzer:
                 if M['m00'] == 0:
                     continue
                 cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])
-                blobs.append({'centroid': (cx, cy), 'hu': hu_moments(cnt), 'contour': cnt})
+                blobs.append({'centroid': (cx, cy), 'hu': calculate_hu_moments(cnt), 'contour': cnt})
                 centroids.append([cx, cy])
         return blobs, np.array(centroids) if centroids else np.array([])
 
@@ -175,10 +153,7 @@ class FireDetector:
             bboxes.append([x, y, x + w, y + h])
         return bboxes
 
-def resize_to_height(img, h):
-    scale = h / img.shape[0]
-    w = int(img.shape[1] * scale)
-    return cv2.resize(img, (w, h))
+
 
 if __name__ == "__main__":
     cap = cv2.VideoCapture("./data/9.MP4")
@@ -197,15 +172,15 @@ if __name__ == "__main__":
 
         bbox_img = frame_small.copy()
         if is_fire and bboxes:
-            nms = non_max_suppression(bboxes)
+            nms = perform_non_maximum_suppression(bboxes)
             for x1,y1,x2,y2 in nms:
                 cv2.rectangle(bbox_img, (x1,y1), (x2,y2), (0,0,255), 2)
 
         h = 360
         combined = cv2.hconcat([
-            resize_to_height(frame_small, h),
-            resize_to_height(cv2.cvtColor(out_frame, cv2.COLOR_RGB2BGR), h),
-            resize_to_height(bbox_img, h)
+            resize_image_to_height(frame_small, h),
+            resize_image_to_height(cv2.cvtColor(out_frame, cv2.COLOR_RGB2BGR), h),
+            resize_image_to_height(bbox_img, h)
         ])
         cv2.imshow("Fire Detection", combined)
         if cv2.waitKey(3) & 0xFF == ord('q'):
