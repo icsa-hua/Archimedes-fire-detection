@@ -9,7 +9,7 @@ from langchain_community.chat_models import ChatOllama
 from langchain.schema.messages import HumanMessage
 
 class LLMHandler:
-    def __init__(self, model_name: str = 'gemma3:12b', temperature: float = 1.0, max_tokens = None):
+    def __init__(self, model_name: str = 'llava:7b', temperature: float = 1.0, max_tokens = None):
         self.model_name = model_name
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     handler = LLMHandler()
     
     try:
-        result = handler.ask_with_image("a.png", "What is happening in this image?")
+        result = handler.ask_with_image("aaaaa.PNG", "Thermal camera fire detection. give me insight of whats going on")
         print("Model answer:", result)
     except Exception as e:
         print("Error:", e)
