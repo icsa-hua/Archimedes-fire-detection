@@ -43,10 +43,6 @@ class LLMHandler:
         gc.collect()
 
     def run(self, frame: np.ndarray, question: str):
-        """
-        Run the model on an image frame (numpy array) instead of a file path.
-        Returns the model's response content.
-        """
         llm = self.get_model()
 
         success, encoded_image = cv2.imencode('.png', frame)

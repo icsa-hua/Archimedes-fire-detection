@@ -4,6 +4,7 @@ import numpy as np
 
 sys.path.append('./')
 
+from src.config import max_solidity
 from src.utils.filters.detection_base import BaseFilter, DetectionObject
 
 class AreaFilter(BaseFilter):
@@ -16,7 +17,7 @@ class AreaFilter(BaseFilter):
 
 class IrregularityFilter(BaseFilter):
     """Filter objects by shape solidity to detect irregular contours."""
-    def __init__(self, max_solidity=0.85):
+    def __init__(self, max_solidity=max_solidity):
         self.max_solidity = max_solidity
         
     def check(self, obj: DetectionObject, context: dict) -> bool:
