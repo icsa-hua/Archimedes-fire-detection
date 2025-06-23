@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 import random
 import ctypes
+from pypiqe import piqe
 
 # Utility: Convert between PIL and OpenCV
 def cv2_to_pil(img): return Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
@@ -117,7 +118,7 @@ if __name__ == "__main__":
     screen_height = user32.GetSystemMetrics(1)
     print(f"Screen size: {screen_width}x{screen_height}")
 
-    cap = cv2.VideoCapture("./data/1.MP4")
+    cap = cv2.VideoCapture("./data/12.MP4")
     ret, frame = cap.read()
     small_size = (frame.shape[1]//2, frame.shape[0]//2)
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -152,6 +153,17 @@ if __name__ == "__main__":
         for name, func in distortions.items():
             img = func(frame_rgb)
             annotated = img.copy()
+
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            score, activityMask, noticeableArtifactMask, noiseMask = piqe(img_gray)
+
+            # Annotate with PIQE score
+            name = f"{name} (PIQE: {score:.4f})"
+            cv2.putText(
+                annotated, name, (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA
+            )
+
             # Black outline for visibility
             cv2.putText(
                 annotated, name, (10, 30),
