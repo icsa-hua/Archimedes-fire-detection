@@ -5,6 +5,8 @@ import random
 import ctypes
 from pypiqe import piqe
 
+from niqe import calculate_niqe
+
 # Sorbel mask for edge detection
 
 # Utility: Convert between PIL and OpenCV
@@ -120,7 +122,7 @@ if __name__ == "__main__":
     screen_height = user32.GetSystemMetrics(1)
     print(f"Screen size: {screen_width}x{screen_height}")
 
-    cap = cv2.VideoCapture("./data/12.MP4")
+    cap = cv2.VideoCapture("./data/1.MP4")
     ret, frame = cap.read()
     small_size = (frame.shape[1]//2, frame.shape[0]//2)
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -155,26 +157,37 @@ if __name__ == "__main__":
         for name, func in distortions.items():
             img = func(frame_rgb)
             annotated = img.copy()
+            # img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            img = img.astype(np.float32)
+            img_gray = cv2.cvtColor(img / 255., cv2.COLOR_RGB2GRAY) * 255.
 
-            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # # NIQE score
+            # niqe_score = calculate_niqe(img_gray, crop_border=0)
+            # niqe_text = f"NIQE: {niqe_score:.4f}"
+
+            # PIQE score
             score, activityMask, noticeableArtifactMask, noiseMask = piqe(img_gray)
+            piqe_text = f"PIQE: {score:.4f}"
 
-            # Annotate with PIQE score
-            name = f"{name} (PIQE: {score:.4f})"
-            cv2.putText(
-                annotated, name, (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA
-            )
+            # Distortion name
+            name_text = name
 
-            # Black outline for visibility
-            cv2.putText(
-                annotated, name, (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 4, cv2.LINE_AA
-            )
-            cv2.putText(
-                annotated, name, (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA
-            )
+            # Draw with black outline for visibility
+            y0 = 30
+            dy = 35
+            for i, text in enumerate([name_text, piqe_text]):
+                y = y0 + i * dy
+                # Outline
+                cv2.putText(
+                    annotated, text, (10, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 4, cv2.LINE_AA
+                )
+                # Foreground
+                cv2.putText(
+                    annotated, text, (10, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA
+                )
+
             annotated_versions.append(annotated)
 
         # Arrange in a 4x4 grid (16 cells, last one black)
