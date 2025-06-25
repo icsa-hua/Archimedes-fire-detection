@@ -49,6 +49,6 @@ class Client:
             cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    video_path = './data/1.MP4'
+    video_path = './data/9.MP4'
     client = Client(video_path)
     client.run(llm=True, visualize=True)
