@@ -208,3 +208,6 @@ __marimo__/
 # Data 
 /data
 .DS_Store
+
+eval_results/
+train_results/
