@@ -1,25 +1,35 @@
 import cv2
 from torch.utils.data import Dataset
+from distortions import *
 
 
 class ImageDataset(Dataset):
-    def __init__(self, image_paths, transform=None):
+    def __init__(self, image_paths, distortions=None, transform=None, is_cache_images=False):
         self.image_paths = image_paths
+        self.distortions = distortions
         self.transform = transform
+        self.images = [cv2.imread(p) for p in image_paths] if is_cache_images else None
 
     def __len__(self):
         return len(self.image_paths)
-    
+
     def __getitem__(self, idx):
-        img_path = self.image_paths[idx]
-        img = cv2.imread(img_path)
+        img = self.images[idx] if self.images else cv2.imread(self.image_paths[idx])
 
-        if self.transform:
-            img, distortion = self.transform(img)
+        # Convert BGR to RGB
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # Apply distortion
+        if self.distortions:
+            img, label = RandomDistortion(self.distortions)(img)
         else:
-            distortion = "None"
+            label = "None"
 
-        return img, distortion
+        # Transform image
+        if self.transform:
+            img = self.transform(img)
+
+        return img, label
 
 
 class VideoFrameDataset(Dataset):
@@ -56,8 +66,7 @@ class VideoFrameDataset(Dataset):
 
 if __name__ == "__main__":
     from torchvision import transforms
-    from torch.utils.data import DataLoader
-    from distortions import *
+    from torch.utils.data import DataLoader    
 
     transform = transforms.Compose([
         lambda img: RandomDistortion([

@@ -7,16 +7,18 @@ from utils.util_distortions import cv2_to_pil, pil_to_cv2
 
 
 class RandomDistortion:
-    def __init__(self, distortions, p=0.5):
+    def __init__(self, distortions):
         self.distortions = distortions
-        self.p = p
 
     def __call__(self, img):
-        if random.random() < self.p:
-            distortion = random.choice(self.distortions)
-            distorted_img, label = distortion(img)
-            return distorted_img, label
-        return img, "None"
+        distortion = random.choice(self.distortions)
+        distorted_img, label = distortion(img)
+        return distorted_img, label
+
+
+class Clean:
+    def __call__(self, img):
+        return img, "Clean"
 
 
 class LensBlur:
@@ -75,14 +77,14 @@ class GaussianNoise:
         return cv2.add(img, noise), "GaussianNoise"
 
 
-class CompressionArtifacts:
+class Compression:
     def __init__(self, quality=5):
         self.quality = quality
 
     def __call__(self, img):
         encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), self.quality]
         _, enc = cv2.imencode('.jpg', img, encode_param)
-        return cv2.imdecode(enc, 1), "CompressionArtifacts"
+        return cv2.imdecode(enc, 1), "Compression"
 
 
 class ColorDistortion:

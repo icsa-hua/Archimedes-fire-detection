@@ -1,9 +1,13 @@
 import torch
+# print("CUDA version: ", torch.version.cuda)
+# print("Available CUDA architectures: ", torch.cuda.get_arch_list())
 import torch.nn as nn
 import torchvision.models as models
 import torch
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
+import os
+from tqdm import tqdm
 
 
 models_dict = {
@@ -16,14 +20,17 @@ models_dict = {
 class IQAEncoder(nn.Module):
     def __init__(self, feature_dim=128, model_name='resnet18', pretrained=True, freeze_encoder=True):
         super().__init__()
-
-        base = models_dict[model_name]['model']
-        encoder_output_dim = models_dict[model_name]['output_dim']
+        
+        backbone = models_dict[model_name]['model']
+        self.encoder_output_dim = models_dict[model_name]['output_dim']
         encoder_weights = models_dict[model_name]['pre_trained_weights'] if pretrained else None
 
         # Initialize encoder
-        encoder = base(weights=encoder_weights)
-        encoder.fc = nn.Identity()
+        encoder = backbone(weights=encoder_weights)
+        if model_name.startswith('vit'):
+            encoder.heads = nn.Identity()
+        else:
+            encoder.fc = nn.Identity()
         self.encoder = encoder
 
         # Optionally freeze encoder parameters
@@ -34,7 +41,7 @@ class IQAEncoder(nn.Module):
         # Projection head
         # Dynamically create projection layers with halving dimensions
         dims = []
-        dim = encoder_output_dim
+        dim = self.encoder_output_dim
         while dim > feature_dim:
             next_dim = max(dim // 2, feature_dim)  # Prevent going below target
             dims.append((dim, next_dim))
@@ -85,16 +92,20 @@ def extract_features(model, dataloader, label_map, device):
     all_features = []
     all_labels = []
     with torch.no_grad():
-        for imgs, labels in dataloader:
-            imgs = imgs.to(device)
-            labels = torch.tensor([label_map[l] for l in labels], dtype=torch.long)
-            features = model(imgs).cpu()
-            all_features.append(features)
-            all_labels.append(labels)
+        try:
+            batch_bar = tqdm(enumerate(dataloader), total=len(dataloader), desc="Extracting features", leave=False)
+            for batch_idx, (imgs, labels) in batch_bar:
+                imgs = imgs.to(device)
+                labels = torch.tensor([label_map[l] for l in labels], dtype=torch.long)
+                features = model(imgs).cpu()
+                all_features.append(features)
+                all_labels.append(labels)
+        except ValueError as e:
+            print(f"Error during feature extraction: {e}")
     return torch.cat(all_features), torch.cat(all_labels)
 
 
-def plot_tsne(features, labels, label_map, epoch):
+def plot_tsne(features, labels, label_map, epoch, model_name, dim_out, avg_loss):
     tsne = TSNE(n_components=2, perplexity=30, random_state=42)
     reduced = tsne.fit_transform(features.numpy())
 
@@ -106,42 +117,57 @@ def plot_tsne(features, labels, label_map, epoch):
         plt.scatter(reduced[idx, 0], reduced[idx, 1], label=label_name, alpha=0.6, s=10)
 
     plt.legend()
-    plt.title(f"t-SNE of Embeddings (Epoch {epoch})")
-    plt.savefig(f"eval_results/tsne_epoch_{epoch}.png")
+    plt.title(f"t-SNE of Embeddings (Epoch {epoch} - {model_name}, Dim: {dim_out}, Loss: {avg_loss:.4f})")
+    path = f"eval_results/{model_name}_{dim_out}_out"
+    os.makedirs(path, exist_ok=True)
+    plt.savefig(f"{path}/tsne_epoch_{epoch}.png")
     plt.close()
 
 
 if __name__ == "__main__":
-    from datasets import VideoFrameDataset
+    from datasets import ImageDataset
     from torchvision import transforms
     from torch.utils.data import DataLoader
     from distortions import *
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = IQAEncoder().to(device)
-    print(model.projection_head)
+    print(f"Using device: {device}")
+    print("CUDA version: ", torch.version.cuda)
+    model_name = 'resnet18'  # 'resnet18' or 'resnet50', 'vit_b_16'
+    dim_out = 128
+    model = IQAEncoder(feature_dim=dim_out, model_name=model_name).to(device)
+    print("Model architecture: ", model.projection_head)
     criterion = SupConLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    distortions = [LensBlur(ksize=7), MotionBlur(degree=10, angle=30), Blackout()]
 
+    distortions = [Clean(), LensBlur(), MotionBlur(), GaussianNoise(), Overexposure(), Underexposure(), Compression(), Ghosting(), Aliasing()]
     transform = transforms.Compose([
-        lambda img: RandomDistortion(distortions, p=0.5)(img),
-        lambda tup: (transforms.ToPILImage()(tup[0]), tup[1]),
-        lambda tup: (transforms.Resize((224, 224))(tup[0]), tup[1]),
-        lambda tup: (transforms.ToTensor()(tup[0]), tup[1]),
+        transforms.ToPILImage(),
+        transforms.Resize((224, 224)), # 224 or 384
+        transforms.ToTensor(),
     ])
-    dataset = VideoFrameDataset("data/1.mp4", transform=transform)
-    dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
-    eval_dataset = VideoFrameDataset("data/2.mp4", transform=transform)
-    eval_dataloader = DataLoader(eval_dataset, batch_size=16, shuffle=False)
 
+    image_folder = "data/video_frames_1"
+    image_paths = [os.path.join(image_folder, fname) for fname in os.listdir(image_folder) if fname.endswith(('.jpg', '.png'))]
+    dataset = ImageDataset(image_paths, distortions=distortions, transform=transform)
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, num_workers=4)
+    print(f"Train Dataset length: {len(dataset)}")
+
+    image_folder = "data/video_frames_2"
+    image_paths = [os.path.join(image_folder, fname) for fname in os.listdir(image_folder) if fname.endswith(('.jpg', '.png'))]
+    eval_dataset = ImageDataset(image_paths, distortions=distortions, transform=transform)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=64, shuffle=False, num_workers=4)
+    print(f"Eval Dataset length: {len(eval_dataset)}")
 
     label_map = {distortion.__class__.__name__: i for i, distortion in enumerate(distortions)}
-    label_map['None'] = len(label_map)
 
-    for epoch in range(100):
+    epochs = 100
+    for epoch in range(epochs):
         model.train()
-        for imgs, labels in dataloader:
+        epoch_loss = 0.0
+        total_batches = len(dataloader)
+        batch_bar = tqdm(enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch + 1}", leave=False)
+        for batch_idx, (imgs, labels) in batch_bar:
             imgs = imgs.to(device)
             labels = torch.tensor([label_map[l] for l in labels], dtype=torch.long, device=device)
             features = model(imgs)
@@ -149,9 +175,13 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            epoch_loss += loss.item()
+            batch_bar.set_postfix(loss=loss.item())
+
+        avg_loss = epoch_loss / total_batches
+        print(f"Epoch {epoch + 1}/{epochs}, Average Loss: {avg_loss:.4f}")
 
         if epoch % 10 == 0:
             eval_features, eval_labels = extract_features(model, eval_dataloader, label_map, device)
-            plot_tsne(eval_features, eval_labels, label_map, epoch)
-            
-        print(f"Epoch {epoch}: Loss {loss.item():.4f}")
+            plot_tsne(eval_features, eval_labels, label_map, epoch+1, model_name, dim_out, avg_loss)
+
