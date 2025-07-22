@@ -133,7 +133,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     print("CUDA version: ", torch.version.cuda)
-    model_name = 'resnet18'  # 'resnet18' or 'resnet50', 'vit_b_16'
+    model_name = 'vit_b_16'  # 'resnet18' or 'resnet50', 'vit_b_16'
     dim_out = 128
     model = IQAEncoder(feature_dim=dim_out, model_name=model_name).to(device)
     print("Model architecture: ", model.projection_head)
@@ -143,17 +143,17 @@ if __name__ == "__main__":
     distortions = [Clean(), LensBlur(), MotionBlur(), GaussianNoise(), Overexposure(), Underexposure(), Compression(), Ghosting(), Aliasing()]
     transform = transforms.Compose([
         transforms.ToPILImage(),
-        transforms.Resize((224, 224)), # 224 or 384
+        transforms.Resize((384, 384)), # 224 or 384
         transforms.ToTensor(),
     ])
 
-    image_folder = "data/video_frames_1"
+    image_folder = "data/FLIR_ADAS_v2/images_thermal_train/data"
     image_paths = [os.path.join(image_folder, fname) for fname in os.listdir(image_folder) if fname.endswith(('.jpg', '.png'))]
     dataset = ImageDataset(image_paths, distortions=distortions, transform=transform)
     dataloader = DataLoader(dataset, batch_size=64, shuffle=True, num_workers=4)
     print(f"Train Dataset length: {len(dataset)}")
 
-    image_folder = "data/video_frames_2"
+    image_folder = "data/FLIR_ADAS_v2/images_thermal_val/data"
     image_paths = [os.path.join(image_folder, fname) for fname in os.listdir(image_folder) if fname.endswith(('.jpg', '.png'))]
     eval_dataset = ImageDataset(image_paths, distortions=distortions, transform=transform)
     eval_dataloader = DataLoader(eval_dataset, batch_size=64, shuffle=False, num_workers=4)
@@ -162,6 +162,7 @@ if __name__ == "__main__":
     label_map = {distortion.__class__.__name__: i for i, distortion in enumerate(distortions)}
 
     epochs = 100
+    best_loss = float('inf')
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0.0
@@ -179,9 +180,47 @@ if __name__ == "__main__":
             batch_bar.set_postfix(loss=loss.item())
 
         avg_loss = epoch_loss / total_batches
-        print(f"Epoch {epoch + 1}/{epochs}, Average Loss: {avg_loss:.4f}")
+        print(f"Epoch {epoch + 1}/{epochs}, Training Loss: {avg_loss:.4f}")
 
-        if epoch % 10 == 0:
-            eval_features, eval_labels = extract_features(model, eval_dataloader, label_map, device)
-            plot_tsne(eval_features, eval_labels, label_map, epoch+1, model_name, dim_out, avg_loss)
+        # Validation and early stopping
+        if ((epoch+1) % 10 == 0) or (epoch == 0):
+            # Validation loss for early stopping
+            model.eval()
+            eval_loss = 0.0
+            all_features = []
+            all_labels = []
+            with torch.no_grad():
+                batch_bar = tqdm(enumerate(eval_dataloader), total=len(eval_dataloader), desc="Extracting features for validation", leave=False)
+                for batch_idx, (imgs, labels) in batch_bar:
+                    imgs = imgs.to(device)
+                    labels = torch.tensor([label_map[l] for l in labels], dtype=torch.long)
+                    features = model(imgs).cpu()
+                    all_features.append(features)
+                    all_labels.append(labels)
+                    loss = criterion(features, labels)
+                    eval_loss += loss.item()
+            eval_loss /= len(eval_dataloader)
+            eval_features, eval_labels = torch.cat(all_features), torch.cat(all_labels)
+            print(f"Validation Loss: {eval_loss:.4f}")
+            plot_tsne(eval_features, eval_labels, label_map, epoch+1, model_name, dim_out, eval_loss)
+            if eval_loss + 0.05 < best_loss:
+                best_loss = eval_loss
+            else:
+                print(f"Early stopping at epoch {epoch + 1} with loss {eval_loss:.4f} (best: {best_loss:.4f})")
+                break
+        
 
+    # Save model checkpoint
+    model_path = f"models/{model_name}_{dim_out}_out.pth"
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    torch.save(model.state_dict(), model_path)
+
+    # test the model with tsne at data/video_frames_1
+    image_folder = "data/video_frames_1"
+    image_paths = [os.path.join(image_folder, fname) for fname in os.listdir(image_folder) if fname.endswith(('.jpg', '.png'))]
+    test_dataset = ImageDataset(image_paths, distortions=distortions, transform=transform)
+    test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4)
+    print(f"Test Dataset length: {len(test_dataset)}")
+
+    test_features, test_labels = extract_features(model, test_dataloader, label_map, device)
+    plot_tsne(test_features, test_labels, label_map, 'TEST', model_name, dim_out, best_loss)
