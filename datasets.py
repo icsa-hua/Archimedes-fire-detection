@@ -4,11 +4,12 @@ from distortions import *
 
 
 class ImageDataset(Dataset):
-    def __init__(self, image_paths, distortions=None, transform=None, is_cache_images=False):
+    def __init__(self, image_paths, distortions=None, transform=None, is_cache_images=False, binary_labels=False):
         self.image_paths = image_paths
         self.distortions = distortions
         self.transform = transform
         self.images = [cv2.imread(p) for p in image_paths] if is_cache_images else None
+        self.binary_labels = binary_labels
 
     def __len__(self):
         return len(self.image_paths)
@@ -19,11 +20,17 @@ class ImageDataset(Dataset):
         # Convert BGR to RGB
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # Apply distortion
-        if self.distortions:
-            img, label = RandomDistortion(self.distortions)(img)
+        # Apply distortion 
+        if self.binary_labels:
+            if self.distortions and random.random() < 0.5:
+                img, label = RandomDistortion(self.distortions)(img)
+            else:
+                label = "Clean"
         else:
-            label = "None"
+            if self.distortions:
+                img, label = RandomDistortion(self.distortions)(img)
+            else:
+                label = "Clean"
 
         # Transform image
         if self.transform:

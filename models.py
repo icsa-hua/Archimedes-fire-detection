@@ -87,6 +87,47 @@ class SupConLoss(nn.Module):
         return loss
     
 
+class DistortionBinaryClassifier(nn.Module):
+    def __init__(self, iqa_encoder: IQAEncoder, hidden_dims=(128, 64)):
+        super().__init__()
+        self.iqa_encoder = iqa_encoder
+        for param in self.iqa_encoder.parameters():
+            param.requires_grad = False  # Freeze encoder
+
+        input_dim = self.iqa_encoder.projection_head[-1].out_features
+
+        layers = []
+        last_dim = input_dim
+        for hdim in hidden_dims:
+            layers.append(nn.Linear(last_dim, hdim))
+            layers.append(nn.ReLU(inplace=True))
+            layers.append(nn.BatchNorm1d(hdim))
+            last_dim = hdim
+
+        # Final layer: output logits for binary classification
+        layers.append(nn.Linear(last_dim, 1))  # Output is a single logit
+        self.classifier = nn.Sequential(*layers)
+
+    def forward(self, x):
+        with torch.no_grad():  # Prevent gradient updates to encoder
+            features = self.iqa_encoder(x)
+        return self.classifier(features)
+    
+    def get_distortion_score(self, x):
+        """Get distortion score (higher = more distorted)"""
+        logits = self.forward(x)
+        return torch.sigmoid(logits)  # 0-1 range, higher = more distorted
+    
+    def get_quality_score(self, x):
+        """Get quality score (higher = better quality)"""
+        distortion_prob = self.get_distortion_score(x)
+        return 1 - distortion_prob  # Invert: higher = better quality
+    
+    def get_raw_logits(self, x):
+        """Get raw logits for advanced use cases"""
+        return self.forward(x)
+    
+
 def extract_features(model, dataloader, label_map, device):
     model.eval()
     all_features = []
@@ -133,7 +174,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     print("CUDA version: ", torch.version.cuda)
-    model_name = 'vit_b_16'  # 'resnet18' or 'resnet50', 'vit_b_16'
+    model_name = 'resnet50'  # 'resnet18' or 'resnet50', 'vit_b_16'
     dim_out = 128
     model = IQAEncoder(feature_dim=dim_out, model_name=model_name).to(device)
     print("Model architecture: ", model.projection_head)
@@ -143,7 +184,7 @@ if __name__ == "__main__":
     distortions = [Clean(), LensBlur(), MotionBlur(), GaussianNoise(), Overexposure(), Underexposure(), Compression(), Ghosting(), Aliasing()]
     transform = transforms.Compose([
         transforms.ToPILImage(),
-        transforms.Resize((384, 384)), # 224 or 384
+        transforms.Resize((224, 224)), # 224 or 384
         transforms.ToTensor(),
     ])
 

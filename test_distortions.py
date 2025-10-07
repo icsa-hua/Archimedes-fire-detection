@@ -15,7 +15,7 @@ if __name__ == "__main__":
     screen_height = user32.GetSystemMetrics(1)
     print(f"Screen size: {screen_width}x{screen_height}")
 
-    cap = cv2.VideoCapture("./data/1.MP4")
+    cap = cv2.VideoCapture("./data/4.MP4")
     ret, frame = cap.read()
     small_size = (frame.shape[1]//2, frame.shape[0]//2)
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -134,6 +134,7 @@ if __name__ == "__main__":
 
         cv2.imshow("Distorted Frames", combined_frame_padded)
         if cv2.waitKey(1) & 0xFF == ord('q'):
+            cv2.imwrite("distorted_frames.png", combined_frame_padded)
             break
         
     cap.release()
