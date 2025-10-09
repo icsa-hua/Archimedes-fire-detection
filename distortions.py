@@ -1,9 +1,13 @@
 import cv2
 import numpy as np
 import random
-from PIL import ImageEnhance
-from utils.util_distortions import cv2_to_pil, pil_to_cv2
+from PIL import ImageEnhance, Image
 
+
+
+# Utility: Convert between PIL and OpenCV
+def cv2_to_pil(img): return Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+def pil_to_cv2(img): return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 
 class RandomDistortion:

@@ -1,11 +1,7 @@
 import ctypes
 import cv2
-from utils.util_distortions import *
-# from pyiqa.archs.niqe_arch import NIQE
-# from pyiqa.archs.piqe_arch import PIQE
-# from pyiqa.archs.arniqa_arch import ARNIQA
-# from pyiqa.archs.paq2piq_arch import PAQ2PIQ
 import torch
+from distortions import *
 
 
 if __name__ == "__main__":
@@ -21,21 +17,21 @@ if __name__ == "__main__":
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
     distortions = {
         "Original": lambda img: img,
-        "Lens Blur": lambda img: add_lens_blur(img),
-        "Motion Blur": lambda img: add_motion_blur(img, degree=15, angle=45),
-        # "Blackout": add_blackout,
-        "Overexposure": lambda img: add_overexposure(img, factor=2.5),
-        "Underexposure": lambda img: add_underexposure(img, factor=0.3),
-        "Noise": lambda img: add_noise(img, mean=0, std=25),
-        "Compression": lambda img: add_compression_artifacts(img, quality=5),
-        # "Color Distortion": add_color_distortion,
-        # "Glare": add_glare,
-        "Ghosting": lambda img: add_ghosting(img, shift=10, alpha=0.6),
-        # "Flicker": lambda img: add_flicker(img, factor=1.8),
-        # "Freeze": add_frame_freeze,
-        # "Obstruction": add_obstruction,
-        # "Crop": add_crop,
-        "Aliasing": lambda img: add_aliasing(img, factor=4)
+        "Lens Blur": lambda img: LensBlur(ksize=11)(img)[0],
+        "Motion Blur": lambda img: MotionBlur(degree=15, angle=45)(img)[0],
+        # "Blackout": lambda img: Blackout()(img)[0],
+        "Overexposure": lambda img: Overexposure(factor=2.5)(img)[0],
+        "Underexposure": lambda img: Underexposure(factor=0.3)(img)[0],
+        "Noise": lambda img: GaussianNoise(mean=0, std=25)(img)[0],
+        "Compression": lambda img: Compression(quality=5)(img)[0],
+        # "Color Distortion": lambda img: ColorDistortion()(img)[0],
+        # "Glare": lambda img: Glare()(img)[0],
+        "Ghosting": lambda img: Ghosting(shift=10, alpha=0.6)(img)[0],
+        # "Flicker": lambda img: Flicker(factor=1.8)(img)[0],
+        # "Freeze": lambda img: FrameFreeze()(img)[0],
+        # "Obstruction": lambda img: Obstruction()(img)[0],
+        # "Crop": lambda img: Crop()(img)[0],
+        "Aliasing": lambda img: Aliasing(factor=4)(img)[0]
     }
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")    
 
@@ -134,7 +130,7 @@ if __name__ == "__main__":
 
         cv2.imshow("Distorted Frames", combined_frame_padded)
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            cv2.imwrite("distorted_frames.png", combined_frame_padded)
+            # cv2.imwrite("distorted_frames.png", combined_frame_padded)  # Uncomment to save the image
             break
         
     cap.release()
