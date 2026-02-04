@@ -2,10 +2,7 @@ import sys
 
 sys.path.append('./')
 
-import gc
-import torch
 from langchain_community.chat_models import ChatOllama
-from langchain.schema.messages import HumanMessage
 
 class LLMHandler:
     """
@@ -36,20 +33,10 @@ class LLMHandler:
         """
         return self._load_model()
 
-    def clear_cache(self):
-        """
-        Clear GPU cache and perform garbage collection.
-        """
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-        gc.collect()
-
     def ask(self, prompt: str):
         """
         Send a prompt to the LLM and return its text response.
         """
         llm = self.get_model()
-        message = HumanMessage(content=prompt)
-        response = llm.invoke([message])
+        response = llm.invoke(prompt)
         return response.content

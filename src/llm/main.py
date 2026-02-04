@@ -1,7 +1,5 @@
-import sys
-sys.path.append('/')
 
-from src.llm.llm_comparator import HumanComparator
+from llm_comparator import HumanComparator
 
 class Pipeline:
     """

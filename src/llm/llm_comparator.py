@@ -5,7 +5,7 @@ class HumanComparator:
     Compares two humans based on ontology labels using an LLM.
     """
 
-    def __init__(self, model_name: str = 'ollama3:12b', temperature: float = 0.7, max_tokens=None):
+    def __init__(self, model_name: str = 'gemma3:12b', temperature: float = 0.7, max_tokens=None):
         self.llm = LLMHandler(model_name=model_name, temperature=temperature, max_tokens=max_tokens)
 
     def compare(self, real_labels: dict, generated_labels: dict):
