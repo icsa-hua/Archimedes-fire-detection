@@ -1,9 +1,24 @@
 import sys
-sys.path.append('./')
+sys.path.append('/')
 
-from src.llm.llm_compare_labels import HumanComparator
+from src.llm.llm_comparator import HumanComparator
 
-def main():
+class Pipeline:
+    """
+    Example pipeline to compare real and generated humans using ontology labels.
+    """
+
+    def __init__(self):
+        self.comparator = HumanComparator()
+
+    def run(self, real_labels: dict, generated_labels: dict):
+        """
+        Run the comparison and return the LLM result.
+        """
+        return self.comparator.compare(real_labels, generated_labels)
+
+
+if __name__ == "__main__":
     real_human_labels = {
         "skin_color": "black",
         "glasses": True,
@@ -18,11 +33,6 @@ def main():
         "hat": False
     }
 
-    comparator = HumanComparator()
-    comparison_result = comparator.compare_humans(real_human_labels, generated_human_labels)
-
-    print("Comparison Result:")
-    print(comparison_result)
-
-if __name__ == "__main__":
-    main()
+    pipeline = Pipeline()
+    result = pipeline.run(real_human_labels, generated_human_labels)
+    print(result)
